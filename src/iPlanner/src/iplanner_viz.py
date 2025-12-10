@@ -1,4 +1,4 @@
-#!/home/shx/anaconda3/envs/iplanner_ws/bin/python
+#!/usr/bin/env python
 # ======================================================================
 # Copyright (c) 2023 Fan Yang
 # Robotic Systems Lab, ETH Zurich
@@ -235,15 +235,45 @@ class iPlannerNode:
         # rospy.loginfo("Received image %s: %d"%(msg.header.frame_id, msg.header.seq))
         self.image_time = msg.header.stamp
         frame = ros_numpy.numpify(msg)
-        frame[~np.isfinite(frame)] = 0
-        if self.uint_type:
-            frame = frame / 1000.0
-        frame[frame > self.depth_max] = 0.0
+        
+        # 处理 RGB 图像
+        # Gazebo 的 R8G8B8 格式可能被转换成不同维度
+        if len(frame.shape) == 3:
+            if frame.shape[2] == 3:
+                # 标准 RGB 图像，从 BGR 转为 RGB（ROS 图像通常是 BGR 格式）
+                frame = frame[:, :, ::-1].copy()
+                rospy.logdebug(f"[DEBUG] 接收到 RGB 图像，形状: {frame.shape}")
+            elif frame.shape[2] == 4:
+                # RGBA 格式，提取前 3 通道（RGB）
+                frame = frame[:, :, :3][:, :, ::-1].copy()  # BGR to RGB
+                rospy.logdebug(f"[DEBUG] 接收到 RGBA 图像，已转换为 RGB，形状: {frame.shape}")
+            elif frame.shape[2] > 3:
+                # 其他多通道格式，只取前 3 通道
+                rospy.logwarn(f"[WARNING] 接收到 {frame.shape[2]} 通道图像，仅使用前 3 通道")
+                frame = frame[:, :, :3][:, :, ::-1].copy()  # BGR to RGB
+            else:
+                # 单通道或两通道，转换为深度图处理
+                rospy.logwarn(f"[WARNING] 接收到 {frame.shape[2]} 通道图像，按深度图处理")
+                frame[~np.isfinite(frame)] = 0
+                if self.uint_type:
+                    frame = frame / 1000.0
+                frame[frame > self.depth_max] = 0.0
+        else:
+            # 2D 图像（深度图）处理
+            rospy.logdebug(f"[DEBUG] 接收到深度图，形状: {frame.shape}")
+            frame[~np.isfinite(frame)] = 0
+            if self.uint_type:
+                frame = frame / 1000.0
+            frame[frame > self.depth_max] = 0.0
+        
         # DEBUG - Visual Image
         # img = PIL.Image.fromarray((frame * 255 / np.max(frame[frame>0])).astype('uint8'))
         # img.show()
         if self.image_flip:
-            frame = PIL.Image.fromarray(frame)
+            if len(frame.shape) == 3:
+                frame = PIL.Image.fromarray(frame.astype(np.uint8))
+            else:
+                frame = PIL.Image.fromarray(frame)
             self.img = np.array(frame.transpose(PIL.Image.ROTATE_180))
         else:
             self.img = frame

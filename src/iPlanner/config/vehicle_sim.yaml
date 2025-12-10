@@ -8,7 +8,7 @@ model_save:             /models/plannernet.pt
 crop_size:              [360, 640]
 uint_type:              False
 # images and gaol waypoint topics
-depth_topic:            /rgbd_camera/depth/image
+depth_topic:            /rgbd_camera/color/image
 goal_topic:             /way_point
 path_topic:             /path
 image_topic:            /iplanner_image
