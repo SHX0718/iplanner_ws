@@ -52,7 +52,10 @@ class IPlannerAlgo:
         """懒轭初始化 ZoeDepth 转换器"""
         if self.zoe_converter is None:
             try:
+                print("="*60)
                 print("[INFO] 开始初始化 ZoeDepth 转换器...")
+                init_start = time.time()
+                
                 # 确保 ZoeDepth 路径在 sys.path 中
                 _current_file = os.path.abspath(__file__)
                 _iplanner_dir = os.path.dirname(_current_file)
@@ -65,14 +68,24 @@ class IPlannerAlgo:
                 
                 from iplanner.zoe_depth_wrapper import ZoeDepthConverter
                 print("[INFO] 成功导入 ZoeDepthConverter")
-                self.zoe_converter = ZoeDepthConverter()  # 使用默认配置：zoedepth_nk + CPU
+                
+                # 使用zoedepth_nk模型，自动选择GPU/CPU
+                self.zoe_converter = ZoeDepthConverter(
+                    model_name="zoedepth_nk",  # 使用 ZoeD_M12_NK.pt
+                    force_cpu=False  # 自动选择设备
+                )
                 self.use_zoe_depth = True
+                
+                init_time = time.time() - init_start
+                print(f"[性能] ZoeDepth 转换器初始化总耗时: {init_time:.4f}秒")
                 print("[INFO] ZoeDepth 转换器初始化成功")
+                print("="*60)
             except Exception as e:
                 print(f"[ERROR] 无法初始化 ZoeDepth: {type(e).__name__}: {e}")
                 import traceback
                 traceback.print_exc()
-                print("[WARNING] 将使用灰度转换模式")
+                print("[警告] 将使用灰度转换模式")
+                print("="*60)
                 self.use_zoe_depth = False
     
     def plan(self, image, goal_robot_frame):
@@ -89,30 +102,23 @@ class IPlannerAlgo:
                 # RGB输入且ZoeDepth可用：用ZoeDepth转换为深度图
                 print(f"[INFO] 检测到RGB输入 {image.shape}，使用ZoeDepth转换")
                 try:
-                    print("[DEBUG] 准备转换RGB图像为PIL格式...")
                     rgb_pil = PIL.Image.fromarray(image.astype(np.uint8)).convert('RGB')
-                    print(f"[DEBUG] PIL图像尺寸: {rgb_pil.size}")
                     
-                    # 开始计时
-                    print("[DEBUG] 开始调用 ZoeDepth 推理...")
-                    start_time = time.time()
+                    # 调用 ZoeDepth 推理（内部已有计时统计）
                     depth_array = self.zoe_converter.rgb_to_depth(rgb_pil)
-                    zoe_time = time.time() - start_time
-                    print("[DEBUG] ZoeDepth 推理完成")
                     
                     # 深度图转为numpy array（如果不是的话）
                     if isinstance(depth_array, torch.Tensor):
                         depth_array = depth_array.cpu().numpy()
                     img_to_process = depth_array
                     print(f"[INFO] ZoeDepth转换成功，深度图形状: {img_to_process.shape}")
-                    print(f"[TIMING] ZoeDepth推理耗时: {zoe_time:.3f} 秒 ({1.0/zoe_time:.2f} FPS)")
                 except Exception as e:
-                    print(f"[WARNING] ZoeDepth转换失败: {e}，降级为灰度处理")
+                    print(f"[警告] ZoeDepth转换失败: {e}，降级为灰度处理")
                     # 转换为灰度图
                     img_to_process = np.dot(image[...,:3], [0.299, 0.587, 0.114])
             else:
                 # RGB输入但ZoeDepth不可用：转换为灰度图
-                print(f"[WARNING] 检测到RGB输入但ZoeDepth不可用，转换为灰度")
+                print(f"[警告] 检测到RGB输入但ZoeDepth不可用，转换为灰度")
                 img_to_process = np.dot(image[...,:3], [0.299, 0.587, 0.114])
         else:
             # 非RGB输入：直接使用（假设为灰度或深度图）
@@ -122,7 +128,7 @@ class IPlannerAlgo:
         if isinstance(img_to_process, np.ndarray):
             if len(img_to_process.shape) == 3:
                 # 如果仍然是多通道，取第一个通道
-                print(f"[WARNING] 输入仍为多通道 {img_to_process.shape}，仅使用第一个通道")
+                print(f"[警告] 输入仍为多通道 {img_to_process.shape}，仅使用第一个通道")
                 img_to_process = img_to_process[:, :, 0]
         
         # 转换为PIL图像
@@ -151,8 +157,6 @@ class IPlannerAlgo:
         
         # 将单通道深度图扩展到3通道（复制深度信息）
         img_tensor = img_tensor.repeat(3, 1, 1).unsqueeze(0)  # (1, 3, H, W)
-        
-        print(f"[DEBUG] 最终输入形状: {img_tensor.shape}")
         
         if torch.cuda.is_available():
             img_tensor = img_tensor.cuda()
