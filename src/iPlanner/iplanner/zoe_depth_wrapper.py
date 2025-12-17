@@ -37,42 +37,57 @@ except ModuleNotFoundError as e:
     print(f"[INFO] sys.path: {sys.path}")
     raise
 
+# 自定义模型的默认路径
+CUSTOM_MODEL_PATH = "/home/tms01/Developments/iplanner_ws/ZoeDepth/zoedepth/models/ZoeDepthNKv1_14-Dec_21-34-fa7c108ac8c1_best.pt"
+
+
 class ZoeDepthConverter:
-    def __init__(self, model_name="zoedepth_nk", force_cpu=True, use_local=True, optimize_inference=True):
+    def __init__(self, model_name="zoedepth_nk", force_cpu=False, use_local=True, optimize_inference=True, custom_model_path=None):
         """
         初始化 ZoeDepth 模型
-        model_name: "zoedepth", "zoedepth_nk" 等（默认使用 zoedepth_nk，对应 ZoeD_M12_NK.pt）
-        force_cpu: 强制使用 CPU（默认 True，避免 CUDA 兼容性问题）
+        model_name: "zoedepth", "zoedepth_nk" 等（默认使用 zoedepth_nk）
+        force_cpu: 强制使用 CPU（默认 False，使用 GPU 加速）
         use_local: 使用本地缓存模型,避免网络请求（默认 True）
         optimize_inference: 优化推理性能（使用torch.inference_mode, 默认 True）
+        custom_model_path: 自定义模型路径（默认使用 ZoeDepthNKv1 自训练模型）
         """
         if force_cpu:
             self.device = "cpu"
             print("[INFO] 强制使用 CPU 运行 ZoeDepth")
         else:
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            print(f"[INFO] 使用设备: {self.device}")
         self.model_name = model_name
         self.use_local = use_local
         self.optimize_inference = optimize_inference
         
-        # 根据模型类型设置本地权重文件路径
-        pretrained_models = {
-            "zoedepth": "ZoeD_M12_N.pt",
-            "zoedepth_nk": "ZoeD_M12_NK.pt",
-        }
-        model_filename = pretrained_models.get(model_name, None)
-        
-        # 构建本地模型权重文件的完整路径
-        # 从当前文件向上找到工作区根目录: iplanner/zoe_depth_wrapper.py -> iplanner -> iPlanner -> src -> iplanner_ws
-        _current_file = os.path.abspath(__file__)
-        _iplanner_pkg_dir = os.path.dirname(os.path.dirname(_current_file))  # iplanner 包目录
-        _src_dir = os.path.dirname(_iplanner_pkg_dir)  # src 目录
-        _workspace_root = os.path.dirname(_src_dir)  # 工作区根目录
-        local_model_path = os.path.join(_workspace_root, 'ZoeDepth', 'zoedepth', 'models', model_filename)
+        # 使用自定义模型路径（优先级：参数 > 默认自定义模型 > 原始预训练模型）
+        if custom_model_path is not None:
+            local_model_path = custom_model_path
+        elif os.path.exists(CUSTOM_MODEL_PATH):
+            # 使用默认的自训练模型
+            local_model_path = CUSTOM_MODEL_PATH
+            print(f"[INFO] 使用自训练模型: {local_model_path}")
+        else:
+            # 回退到原始预训练模型
+            pretrained_models = {
+                "zoedepth": "ZoeD_M12_N.pt",
+                "zoedepth_nk": "ZoeD_M12_NK.pt",
+            }
+            model_filename = pretrained_models.get(model_name, None)
+            
+            # 构建本地模型权重文件的完整路径
+            _current_file = os.path.abspath(__file__)
+            _iplanner_pkg_dir = os.path.dirname(os.path.dirname(_current_file))
+            _src_dir = os.path.dirname(_iplanner_pkg_dir)
+            _workspace_root = os.path.dirname(_src_dir)
+            local_model_path = os.path.join(_workspace_root, 'ZoeDepth', 'zoedepth', 'models', model_filename)
         
         # 检查本地文件是否存在
         if not os.path.exists(local_model_path):
             raise FileNotFoundError(f"Model file not found: {local_model_path}")
+        
+        print(f"[INFO] 加载模型: {local_model_path}")
         
         # 使用本地路径作为pretrained_resource
         pretrained_resource = f"local::{local_model_path}"
@@ -113,6 +128,13 @@ class ZoeDepthConverter:
         self.model = self.model.to(self.device)
         # 设置为评估模式（禁用dropout和batch norm）
         self.model.eval()
+        
+        # 修复MiDaS Block中缺失的drop_path属性（解决 'Block' object has no attribute 'drop_path' 错误）
+        for name, module in self.model.named_modules():
+            if hasattr(module, '__class__') and 'Block' in module.__class__.__name__:
+                if not hasattr(module, 'drop_path'):
+                    module.drop_path = torch.nn.Identity()
+        print("[INFO] 已修复Block模块的drop_path属性")
         
         # 优化推理性能
         if self.optimize_inference:

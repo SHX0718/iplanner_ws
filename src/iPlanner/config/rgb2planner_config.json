@@ -1,0 +1,60 @@
+{
+    "modelConfig": {
+        "_comment": "RGB2PlannerNet 模型配置",
+        "k": 5,
+        "goal_channels": 64,
+        "zoe_model_name": "zoedepth_nk",
+        "pretrained_zoe": true,
+        "pretrained_planner": null,
+        "freeze_zoe_encoder": true,
+        "output_intermediate_depth": false
+    },
+    
+    "dataConfig": {
+        "_comment": "数据加载配置",
+        "data_root": "data",
+        "scene_list": "training_list.txt",
+        "crop_size": [384, 512],
+        "goal_step": 5,
+        "max_episode": 25,
+        "max_depth": 10.0,
+        "load_depth": false
+    },
+    
+    "trainingConfig": {
+        "_comment": "训练配置",
+        "batch_size": 4,
+        "num_workers": 4,
+        "lr": 0.0001,
+        "lr_encoder": 0.00001,
+        "weight_decay": 0.0001,
+        "patience": 5,
+        "min_lr": 0.000001,
+        "lr_factor": 0.5
+    },
+    
+    "stageConfig": {
+        "_comment": "阶段训练配置 - Stage1冻结编码器, Stage2端到端微调",
+        "stage1_epochs": 30,
+        "stage2_epochs": 20,
+        "enable_stage2": true
+    },
+    
+    "lossConfig": {
+        "_comment": "损失函数权重配置",
+        "alpha": 0.5,
+        "beta": 1.0,
+        "gamma": 2.0,
+        "delta": 5.0,
+        "fear_ahead_dist": 2.0,
+        "obstacle_threshold": 0.5
+    },
+    
+    "deviceConfig": {
+        "_comment": "设备和保存配置",
+        "gpu_id": 0,
+        "save_dir": "/home/tms01/Developments/iplanner_ws/src/iPlanner/iplanner/models",
+        "log_interval": 10,
+        "use_wandb": false
+    }
+}

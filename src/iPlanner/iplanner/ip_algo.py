@@ -65,7 +65,7 @@ class IPlannerAlgo:
                 
                 from iplanner.zoe_depth_wrapper import ZoeDepthConverter
                 print("[INFO] 成功导入 ZoeDepthConverter")
-                self.zoe_converter = ZoeDepthConverter()  # 使用默认配置：zoedepth_nk + CPU
+                self.zoe_converter = ZoeDepthConverter()  # 使用默认配置：zoedepth_nk + GPU + 自训练模型
                 self.use_zoe_depth = True
                 print("[INFO] ZoeDepth 转换器初始化成功")
             except Exception as e:

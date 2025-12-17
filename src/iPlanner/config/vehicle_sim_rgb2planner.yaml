@@ -1,0 +1,50 @@
+# ======================================================================
+# RGB2Planner 端到端模式配置
+# 直接从 RGB 图像预测路径，无需预计算深度图
+# ======================================================================
+
+# planning
+main_freq:              15
+image_flip:             False
+conv_dist:              0.25
+is_sim:                 True
+
+# 网络模型配置 - 端到端模式
+model_save:             /models/rgb2planner.pt
+model_type:             rgb2planner    # 新增: 模型类型 (planner / rgb2planner)
+crop_size:              [384, 512]     # RGB2Planner 使用 ZoeDepth 标准尺寸
+uint_type:              False
+
+# 图像话题配置 - 端到端模式使用 RGB
+# 重要: 端到端模式订阅 RGB 图像，而非深度图
+rgb_topic:              /rgbd_camera/color/image    # 新增: RGB 话题
+depth_topic:            /rgbd_camera/depth/image    # 保留: 用于对比或回退
+use_rgb_input:          True                        # 新增: 启用 RGB 输入模式
+
+goal_topic:             /way_point
+path_topic:             /path
+image_topic:            /iplanner_image
+camera_tilt:            0.0
+depth_max:              10.0
+
+# frame ids
+robot_id:               vehicle
+world_id:               map
+
+# fear reaction
+is_fear_act:            True
+buffer_size:            3
+angular_thred:          0.5
+track_dist:             0.5
+
+# sensor offset
+sensor_offset_x:        0.0
+sensor_offset_y:        0.0
+
+# smart joystick
+joyGoal_scale:          5.0
+
+# RGB2Planner 特有配置
+zoe_model_name:         zoedepth_nk
+freeze_encoder:         True           # 推理时固定编码器
+output_depth:           False          # 是否输出中间深度图用于可视化
